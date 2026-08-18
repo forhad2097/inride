@@ -1,0 +1,24 @@
+# --- secrets: never commit ---
+.env
+.env.local
+.env.*.local
+
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- test output ---
+reports/
+test-results/
+playwright/.auth/
+playwright-report/
+
+# --- editors / os ---
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
