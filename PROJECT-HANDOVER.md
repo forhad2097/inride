@@ -65,6 +65,90 @@ highlighting, soft assertions, reporting — are custom code in `utils/`.
 
 ---
 
+## 3A. The original requirement brief (client, phase 1)
+
+Captured here so the next session knows what was *asked*, not just what was built.
+
+### Roles supplied
+| Role | Username | Password |
+|---|---|---|
+| Platform Admin | `individual@yopmail.com` | in `.env` |
+| Dealer Admin | `arizona.toyota.corp@yopmail.com` | in `.env` |
+| User | `forhad1.inride@yopmail.com` | in `.env` |
+| Read-Only User | `Scopereadonly@yopmail.com` | in `.env` |
+
+Requirement: centralised/dynamic role config; a test selects a role instead of
+hardcoding credentials. **Execute Platform Admin only** in this phase.
+
+### Login page assertions requested
+- Application logo displayed
+- Text: `AI-powered customer engagement management for automotive dealers`
+- Email field, Password field, Forgot Password, Login button
+- Login with SSO, Login with Google
+- Footer: **detect items dynamically**, record every item found, assert each
+  expected item **individually**, do not assume order, keep it reusable
+
+### Visual highlighting — explicitly emphasised as "very important"
+1. Locate the element
+2. Scroll into the viewport if needed
+3. Apply a **yellow** highlight/border/background
+4. Keep it visible briefly so a human observer can follow along
+5. Perform the assertion
+6. Continue
+
+Must be a **reusable helper**, not duplicated per test. Must not permanently
+modify the application (temporary JS/CSS injection, restored afterwards). The
+live headed browser must show the highlight — not just screenshots or reports.
+
+### Menu validation requested
+For each of the 14 menus: locate dynamically, scroll into view, highlight yellow,
+assert visible, assert the text is correct, record the result in the report.
+Prefer robust locators (accessible role, visible text, stable attributes, test ids).
+
+Specific pages called out: Conversations (Email/Text submenus), Dealer Profile
+(`Dealers`, `Manage Dealer Organization`), Users (`Manage Users`,
+`Account & Permission`). Remaining menus: open, confirm the page loads, capture
+and assert the primary header.
+
+### Reporting requested
+Meaningful assertion descriptions rather than a bare visibility check. Examples
+given: `Platform Admin - Login Page Logo is visible`,
+`Platform Admin - Users menu is visible`. The report must show what was tested,
+what was expected, what was found, pass/fail, and where.
+
+### Error handling requested
+Do not abort the whole suite on one missing element. Capture the expected element
+and actual state, screenshot on failure, continue independent validations, report
+the failure clearly. Avoid masking failures with excessive retries or overly broad
+selectors.
+
+### Security requested
+Keep credentials centralised, use environment variables/secrets, never print
+passwords in logs, reports, screenshots or assertion messages.
+
+### Explicitly forbidden this phase
+No other-role login, no role-permission comparison, no create/update/delete, no
+campaign or automation workflows, no email/SMS sending, no dealer/user record
+modification, no unrelated business functionality.
+
+---
+
+## 3B. Key decisions and why
+
+| Decision | Reason |
+|---|---|
+| Playwright over Selenium | auto-waiting removes a whole flake class; trace viewer, video and screenshots are built in; `get_by_test_id` is first-class; ~3 min for 133 validations |
+| No BDD layer (Cucumber/Behave) | would add a Gherkin step file on top of the same Python; the assertion descriptions already read like Gherkin in the report. `pytest-bdd` can be layered on later without touching the framework |
+| Four-layer split instead of classic two-layer POM | the brief demanded that page assertions stay separate from navigation logic, so more expected text can be supplied later without a rewrite |
+| Custom `Verifier` instead of `pytest-check` | needed highlight-then-assert, expected/actual capture, and control over the report format |
+| Soft assertions | the brief explicitly required continuing after a failure |
+| Two session-scoped browser windows | pytest-playwright's per-test `page` opened a window per test, which ruined the headed demo |
+| Assert the **actual UI text**, record the requirement wording alongside | asserting the requirement's wording would produce false failures; ignoring it would hide a real discrepancy. Recording both surfaces it for a client decision |
+| Dismiss the 2FA dialog rather than turn 2FA off | dismissing is read-only; changing an account setting would violate the no-data-change rule |
+| `.env` gitignored, `.env.example` committed with empty passwords | the security requirement |
+
+---
+
 ## 4. Architecture — four layers
 
 | Layer | Holds | Must never hold |
@@ -436,3 +520,96 @@ without having seen it.
 
 Last verified state: **18 tests, 133 validations, 0 failures, 2 browser windows,
 ~3 minutes headless.**
+
+---
+
+## 20. Assistant environment — skills installed
+
+Installed at user level (`~/.claude/skills/`) while setting this project up:
+
+| Skill | Source | Use for |
+|---|---|---|
+| `playwright-best-practices` | currents-dev/playwright-best-practices-skill | any deeper Playwright question — 60+ reference docs |
+| `test-driven-development` | obra/superpowers | RED-GREEN-REFACTOR discipline |
+| `systematic-debugging` | superpowers | before proposing a fix |
+| `verification-before-completion` | superpowers | before claiming work is done |
+| `writing-plans`, `executing-plans`, `brainstorming` | superpowers | multi-step work |
+| `requesting-code-review`, `receiving-code-review`, `writing-skills` | superpowers | review and skill authoring |
+| `diagnosing-bugs`, `research` | mattpocock/skills | hard bugs, documentation research |
+
+Written specifically for this project (`.claude/skills/`, committed to the repo):
+
+| Skill | Covers |
+|---|---|
+| `playwright-python-pom` | Python POM conventions, locator priority, web-first assertions, banned patterns, the exact run commands |
+| `qa-test-design` | turning a requirement into test cases — positive/negative/boundary/state, risk-based priority, naming |
+| `playwright-flaky-triage` | fixed diagnosis order for timeouts, strict-mode violations, races and state leaks; hard bans on sleep/retry "fixes" |
+
+`CLAUDE.md` at the repo root says which skill to load in which situation and
+restates the non-negotiables. It loads automatically each session.
+
+---
+
+## 21. Client demo runbook
+
+The suite is demonstrated live to clients, so the visible run matters as much as
+the coverage.
+
+### Steps
+1. Open File Explorer, go to `D:\inride`
+2. Double-click **`DEMO-START.bat`**
+3. A CMD window opens, then **one** Chromium window
+4. Elements highlight yellow one by one; the terminal prints `PASS | ...` per validation
+5. `7 passed` at the end; `assertion_report.html` opens automatically
+
+~2 minutes, 7 tests, 85 validations. Use `DEMO-FULL.bat` for all 18 tests (~6 min).
+
+### Before the demo
+- Run `RUN-HEADLESS.bat` once to confirm the environment and the app are healthy
+- Empty the `reports\` folder so only today's result is shown
+- Enlarge the CMD window so the `PASS |` lines do not wrap
+- Put the browser and terminal side by side — highlight on the left, PASS lines on the right
+
+### What to say
+| Moment | Point to make |
+|---|---|
+| Browser opens | the automation drives a real browser |
+| Yellow highlight | you can see exactly which element is being validated, live |
+| Terminal | every check is named and recorded separately |
+| Report opens | 85 validations, 85 passed, 0 failed, expected vs. actual per row |
+
+---
+
+## 22. Git workflow
+
+```bash
+cd D:\inride
+git add -A
+git commit -m "message"
+git push
+```
+
+Repository: `https://github.com/forhad2097/inride` (branch `main`).
+
+Committed: source, tests, skills, batch launchers, CI workflow, `.env.example`,
+documentation. **Not committed:** `.env`, `.venv/`, `reports/`, caches.
+
+Consider keeping the repository **private** — it holds no credentials, but it does
+map the client application's test ids and URL structure.
+
+---
+
+## 23. Quick orientation for a new session
+
+If you are an assistant picking this up cold, read in this order:
+
+1. This file, sections 1–3B — what and why
+2. `CLAUDE.md` — the rules you must follow
+3. `config/menus.py` — the expected-value source of truth
+4. `utils/verification.py` — how every assertion actually runs
+5. `tests/ui/test_platform_admin_access.py` — what a test looks like here
+
+Then run `RUN-HEADLESS.bat` and confirm 18 passed / 133 validations before
+changing anything.
+
+**Do not begin phase 2 work until the client explicitly asks for it.**
