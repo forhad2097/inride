@@ -64,10 +64,11 @@ inride/
 ├── config/
 │   ├── settings.py        # env-driven config; the only reader of os.environ
 │   ├── roles.py           # Role enum + credential resolution (password masked)
-│   └── menus.py           # expected menus + expected page text, per role
+│   ├── menus.py           # expected menus + expected page text, per role
+│   └── login_page.py      # expected login page copy: form, footer, copyright
 ├── pages/                 # locators + navigation. NO assertions.
 │   ├── base_page.py
-│   ├── login_page.py
+│   ├── login_page.py      # locators grouped: form, password toggle, footer
 │   ├── app_shell.py       # sidebar, top bar, 2FA reminder handling
 │   └── conversations_page.py
 ├── validations/           # named assertions. NO locators.
@@ -118,12 +119,13 @@ pytest failure line, a log record or an HTML report.
 
 ---
 
-## Coverage — 18 tests, 133 validations
+## Coverage — 19 tests, 186 validations
 
 | Suite | Tests | Validations |
 |---|---|---|
-| Login page — branding + form | 1 | 14 |
-| Login page — dynamic footer | 1 | 20 |
+| Login page — branding, title, labels, form controls | 1 | 22 |
+| Login page — full footer (logo, Legal, Contact Info, social, copyright) | 1 | 50 |
+| Login page — password show/hide, then valid login | 1 | 15 |
 | Platform Admin login | 1 | 3 |
 | All 14 main menus | 1 | 29 |
 | Conversations → Email / SMS submenus | 1 | 5 |
@@ -138,21 +140,28 @@ menu that broke instead of failing one giant test.
 
 ## Findings — application text vs. the requirement document
 
-Three requirement strings do not match what the application renders. The suite
+Four requirement strings do not match what the application renders. The suite
 asserts the **actual UI text** and records the difference in the report rather
 than silently passing or failing:
 
 | Requirement asked for | Application renders | Where |
 |---|---|---|
+| `Copyright 2026, Inright LLC, All Rights Reserved` | `© Copyright 2026 Inride LLC. All Rights Reserved.` | Login footer |
 | `Manage Dealer Organization` | `Manage dealer organizations` | Dealer Profile |
 | `Manage Users` / `Account & Permission` | `Manage user accounts and permissions` | Users |
 | Conversations submenu `Text` | `SMS` | Conversations tabs |
+
+The copyright line differs in four ways: a leading `©`, spaces instead of the
+commas, a trailing full stop, and the company spelled **`Inride`** rather than
+`Inright` — which matches the `inride.com` domain, so the requirement's spelling
+looks like a typo. Confirm which is correct and it is a one-line change.
 
 Also worth noting: the **Automation Sequences** menu opens a page whose header
 reads **`Sequences`**, and **Push Notifications** opens **`Push Notification
 Preferences`**.
 
-Supply the intended wording and it is a one-line change in `config/menus.py`.
+Supply the intended wording and it is a one-line change in `config/menus.py`
+(pages) or `config/login_page.py` (login page and footer).
 
 ---
 

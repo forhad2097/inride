@@ -46,7 +46,9 @@ roles (`DEALER_ADMIN`, `USER`, `READ_ONLY_USER`) stay configured but unexecuted.
 
 ## Non-negotiables
 
-1. Selectors live in `pages/`; expectations live in `config/menus.py`; tests hold neither.
+1. Selectors live in `pages/`; expectations live in `config/` (`menus.py` for
+   navigation and destination pages, `login_page.py` for the login page and its
+   footer); tests hold neither.
 2. **Every UI assertion goes through `verify.*`**, which highlights the element
    in yellow first. Never call `expect()` directly in a test.
 3. Assertions are soft — they record and continue; the test fails once at teardown.
