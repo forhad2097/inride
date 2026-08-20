@@ -32,25 +32,75 @@ def base_url() -> str:
     return settings.url
 
 
+def _detect_screen_size() -> dict:
+    """Best-effort real screen resolution.
+
+    Used as the headless viewport (there is no OS window to maximize when
+    there is no display) and as the fallback if a headed launch somehow still
+    ends up with a fixed viewport. Never raises: CI runners and some
+    containers have no display to query, so a generous 1920x1080 default
+    stands in rather than failing the whole session over a window size.
+    """
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        user32.SetProcessDPIAware()
+        width, height = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+        if width > 0 and height > 0:
+            return {"width": width, "height": height}
+    except Exception as exc:  # noqa: BLE001 - non-Windows or no display
+        log.debug("could not detect the real screen resolution: %s", exc)
+    return {"width": 1920, "height": 1080}
+
+
 @pytest.fixture(scope="session")
 def browser_type_launch_args(browser_type_launch_args: dict) -> dict:
+    """Global browser maximization rule.
+
+    Headed: ``--start-maximized`` grows the OS window to the full screen
+    before any page is opened, paired with ``no_viewport`` below so Playwright
+    does not then clamp the page back down to a fixed size.
+
+    Headless: there is no OS window to maximize, so the real screen resolution
+    is used as the viewport instead (see ``context_options``) - "maximum
+    available size" for a display-less run.
+
+    This is the one place browser launch is configured for the whole suite;
+    every session (``new_session`` in this file, and anything pytest-playwright
+    opens on its own) goes through it, so no page object or test ever repeats
+    this logic.
+    """
+    args = list(browser_type_launch_args.get("args", []))
+    if not settings.headless and "--start-maximized" not in args:
+        args.append("--start-maximized")
     return {
         **browser_type_launch_args,
         "headless": settings.headless,
         "slow_mo": settings.slow_mo,
+        "args": args,
     }
 
 
 @pytest.fixture(scope="session")
 def context_options() -> dict:
     """Shared context options, used by pytest-playwright's context and by the
-    long-lived authenticated context in tests/conftest.py."""
-    return {
-        "viewport": {"width": 1440, "height": 900},
+    long-lived authenticated context in tests/conftest.py.
+
+    Never a hardcoded viewport like 1280x720 - see
+    ``browser_type_launch_args`` for the maximization rule this implements.
+    """
+    options = {
         "locale": "en-US",
         "timezone_id": "UTC",
         "ignore_https_errors": True,
     }
+    if settings.headless:
+        options["viewport"] = _detect_screen_size()
+    else:
+        # No fixed viewport: the page fills the OS-maximized window instead.
+        options["no_viewport"] = True
+    return options
 
 
 @pytest.fixture(scope="session")

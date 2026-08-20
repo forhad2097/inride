@@ -12,6 +12,13 @@ Authoritative conventions for this repo. Deviating from them is a review failure
 1. **No selector strings inside a test file.** Every locator lives in a page or component class.
 2. **No assertions inside page-object action methods.** Actions do; tests assert. (Exception: an explicit `expect_*` / `assert_*` method the test calls on purpose.)
 3. **No `time.sleep()`. No `wait_for_timeout()`.** Ever. Use web-first assertions — they auto-retry.
+3a. **Every browser window is maximized before any interaction, always.** This is
+    configured once, globally, in the root `conftest.py` (`browser_type_launch_args`
+    sets `--start-maximized` when headed, `context_options` sets `no_viewport=True`
+    when headed and a detected-screen-resolution viewport when headless). Never a
+    hardcoded viewport size, and never add maximize/viewport logic to a page object
+    or a test — that would duplicate session-level configuration everywhere it is
+    not needed.
 4. **Every page method does one thing** and is named for user intent (`submit_order`, not `click_button_3`).
 5. **Navigation returns the next page object.** `login()` returns `InventoryPage`, so the test reads like a user journey.
 

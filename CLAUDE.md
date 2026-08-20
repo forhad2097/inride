@@ -62,6 +62,13 @@ roles (`DEALER_ADMIN`, `USER`, `READ_ONLY_USER`) stay configured but unexecuted.
    reminder itself is under test.
 9. Never click `Verify & Enable` in the 2FA setup dialog — it would switch two-factor
    authentication on for a shared QA account and lock every other test out.
+10. **Every browser window is maximized before any page interaction, always.**
+    Configured once, globally, in `conftest.py` (`browser_type_launch_args` +
+    `context_options`) — headed launches with `--start-maximized` and
+    `no_viewport=True`; headless uses the real detected screen resolution as
+    the viewport. Never a hardcoded viewport like `1280x720`. Never add
+    maximize/viewport logic inside a page object or a test — this is
+    session-level configuration, not something any future page repeats.
 
 ## Before reporting work complete
 
