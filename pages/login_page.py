@@ -115,19 +115,24 @@ class LoginPage(BasePage):
         self.password_input.fill(credentials.password)
         return self
 
-    def submit(self) -> "AppShell":
-        """Submit the form and hand back the authenticated shell."""
+    def submit(self, *, dismiss_reminder: bool = True) -> "AppShell":
+        """Submit the form and hand back the authenticated shell.
+
+        ``dismiss_reminder=False`` leaves the post-login two-factor reminder
+        popup on screen. The navigation suites want it gone (it overlays every
+        click); the two-factor suite wants it intact so it can be asserted.
+        """
         self.login_button.click()
 
         from pages.app_shell import AppShell
 
         shell = AppShell(self.page)
-        shell.wait_until_ready()
+        shell.wait_until_ready(dismiss_reminder=dismiss_reminder)
         return shell
 
-    def login(self, credentials: Credentials) -> "AppShell":
+    def login(self, credentials: Credentials, *, dismiss_reminder: bool = True) -> "AppShell":
         """Fill the form and submit it in one step."""
-        return self.fill_credentials(credentials).submit()
+        return self.fill_credentials(credentials).submit(dismiss_reminder=dismiss_reminder)
 
     def submit_expecting_failure(self, username: str, password: str) -> "LoginPage":
         """Reserved for the negative-login cases of a later phase."""

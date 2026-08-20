@@ -65,14 +65,17 @@ inride/
 │   ├── settings.py        # env-driven config; the only reader of os.environ
 │   ├── roles.py           # Role enum + credential resolution (password masked)
 │   ├── menus.py           # expected menus + expected page text, per role
-│   └── login_page.py      # expected login page copy: form, footer, copyright
+│   ├── login_page.py      # expected login page copy: form, footer, copyright
+│   └── two_factor.py      # expected copy of the three post-login 2FA dialogs
 ├── pages/                 # locators + navigation. NO assertions.
 │   ├── base_page.py
 │   ├── login_page.py      # locators grouped: form, password toggle, footer
 │   ├── app_shell.py       # sidebar, top bar, 2FA reminder handling
+│   ├── two_factor.py      # the post-login 2FA dialog chain
 │   └── conversations_page.py
 ├── validations/           # named assertions. NO locators.
 │   ├── login_validations.py
+│   ├── two_factor_validations.py
 │   ├── navigation_validations.py
 │   └── page_validations.py
 ├── utils/
@@ -119,13 +122,14 @@ pytest failure line, a log record or an HTML report.
 
 ---
 
-## Coverage — 19 tests, 186 validations
+## Coverage — 20 tests, 240 validations
 
 | Suite | Tests | Validations |
 |---|---|---|
 | Login page — branding, title, labels, form controls | 1 | 22 |
 | Login page — full footer (logo, Legal, Contact Info, social, copyright) | 1 | 50 |
 | Login page — password show/hide, then valid login | 1 | 15 |
+| Post-login 2FA dialog chain (reminder → settings → setup → cancel → close) | 1 | 54 |
 | Platform Admin login | 1 | 3 |
 | All 14 main menus | 1 | 29 |
 | Conversations → Email / SMS submenus | 1 | 5 |
@@ -189,3 +193,41 @@ Supply the intended wording and it is a one-line change in `config/menus.py`
 
 No part of that requires touching the highlighting, verification or reporting
 machinery.
+
+---
+
+## Post-login two-factor flow
+
+The account under test has two-factor authentication switched off, so the
+application raises a reminder popup after every login. The suite walks the whole
+chain and backs out of it:
+
+```
+successful login
+  └─ Reminder popup        "Protect your account with 2FA"
+       ├─ assert title, description, "Maybe Later", "Open Security Settings"
+       └─ click Open Security Settings          (not Maybe Later)
+            └─ Settings popup   "Two-Factor Authentication"
+                 ├─ assert subtitle, "2FA is Disabled", description, Enable button, Close (X)
+                 └─ click Enable 2FA
+                      └─ Setup popup   "Setup Two-Factor Authentication"
+                           ├─ assert QR instruction and QR image (presence only)
+                           ├─ assert manual code label and code   (presence only)
+                           ├─ assert 6-digit label and input      (never filled)
+                           ├─ assert Cancel and "Verify & Enable" (never clicked)
+                           └─ click Cancel
+                                └─ back on the Settings popup, still "2FA is Disabled"
+                                     └─ click Close (X) → authenticated app
+```
+
+**Nothing is switched on.** `Enable 2FA` only requests a setup secret and renders
+the QR screen; two-factor authentication is activated by `Verify & Enable`, which
+is asserted but never clicked. Verified after every run: the account still logs
+in with no authenticator prompt and still reports `2FA is Disabled`.
+
+Dynamic values — the QR image and the 32-character manual setup code — are
+asserted for **presence only**. The manual code is additionally treated as a
+secret: only its length reaches the report, never its value.
+
+Popups 2 and 3 are the **same** dialog element (`dialog-2fa-settings`)
+re-rendered, so they are told apart by their heading, never by the container.

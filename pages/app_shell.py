@@ -39,11 +39,16 @@ class AppShell(BasePage):
         self.page_description: Locator = page.get_by_test_id("text-page-description")
 
     # --- readiness --------------------------------------------------
-    def wait_until_ready(self) -> "AppShell":
+    def wait_until_ready(self, *, dismiss_reminder: bool = True) -> "AppShell":
         """Block until the authenticated shell is usable: the profile menu is
-        rendered and the post-login reminder dialog is out of the way."""
+        rendered and, by default, the post-login reminder dialog is out of the way.
+
+        Pass ``dismiss_reminder=False`` when the reminder itself is under test -
+        the two-factor suite asserts it before choosing what to click.
+        """
         self.profile_menu.wait_for(state="visible", timeout=settings.navigation_timeout)
-        self.dismiss_two_factor_reminder()
+        if dismiss_reminder:
+            self.dismiss_two_factor_reminder()
         return self
 
     def dismiss_two_factor_reminder(self) -> bool:

@@ -13,6 +13,11 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 
+# Importing settings is what loads .env. Without this, importing config.roles on
+# its own (a script, a REPL, a one-off check) silently reads an empty
+# environment and reports every role as unconfigured.
+from config import settings as _settings  # noqa: F401
+
 
 class Role(str, Enum):
     PLATFORM_ADMIN = "PLATFORM_ADMIN"

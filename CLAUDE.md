@@ -58,7 +58,10 @@ roles (`DEALER_ADMIN`, `USER`, `READ_ONLY_USER`) stay configured but unexecuted.
 7. Passwords never appear in logs, reports or assertion messages
    (`Credentials.__repr__` masks them — do not bypass it).
 8. The post-login 2FA reminder dialog blocks all clicks; `AppShell.wait_until_ready()`
-   dismisses it. Never skip that step.
+   dismisses it. Never skip that step. Pass `dismiss_reminder=False` only when the
+   reminder itself is under test.
+9. Never click `Verify & Enable` in the 2FA setup dialog — it would switch two-factor
+   authentication on for a shared QA account and lock every other test out.
 
 ## Before reporting work complete
 

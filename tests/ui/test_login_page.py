@@ -20,10 +20,12 @@ from playwright.sync_api import Page
 
 from config.roles import Credentials, Role
 from pages.login_page import LoginPage
+from pages.two_factor import TwoFactorReminderDialog
 from utils.logger import get_logger
 from utils.verification import Verifier
 from validations.login_validations import LoginPageValidations
 from validations.navigation_validations import NavigationValidations
+from validations.two_factor_validations import TwoFactorValidations
 
 log = get_logger(__name__)
 
@@ -104,4 +106,64 @@ def test_password_visibility_toggles_then_valid_user_logs_in(
     navigation.validate_logged_in()
     verify.record_info(
         f"{role.display_name} - Landing page after a successful login", shell.current_url
+    )
+
+
+# --------------------------------------------- post-login 2FA flow
+@pytest.mark.smoke
+@pytest.mark.critical
+@pytest.mark.login
+@pytest.mark.two_factor
+def test_post_login_two_factor_flow_can_be_reviewed_and_dismissed(
+    login_page: LoginPage,
+    platform_admin: Credentials,
+    verify: Verifier,
+    role: Role,
+    signed_out_afterwards,
+):
+    """Log in, then walk the whole two-factor dialog chain and back out of it.
+
+    Same browser, same context, same page as every other test in this file.
+
+    Read-only by design. ``Enable 2FA`` only requests a setup secret and opens
+    the setup screen; two-factor authentication is switched on by
+    ``Verify & Enable``, which is asserted but **never clicked** - doing so
+    would lock a shared QA account behind an authenticator app.
+    """
+    two_factor = TwoFactorValidations(verify, role)
+
+    # --- 1. log in, leaving the reminder popup on screen to be asserted ---
+    login_page.open()
+    shell = login_page.login(platform_admin, dismiss_reminder=False)
+
+    reminder = TwoFactorReminderDialog(shell.page).wait_until_shown()
+    two_factor.validate_reminder_dialog(reminder)
+
+    # --- 2. "Open Security Settings", not "Maybe Later" ---
+    settings_dialog = reminder.open_security_settings()
+    two_factor.validate_settings_dialog(settings_dialog)
+    two_factor.validate_close_control(settings_dialog)
+
+    # --- 3. "Enable 2FA" opens the setup screen ---
+    settings_dialog.enable_two_factor()
+    two_factor.validate_setup_dialog(settings_dialog)
+    two_factor.validate_qr_code(settings_dialog)
+    two_factor.validate_manual_code(settings_dialog)
+    two_factor.validate_token_input(settings_dialog)
+    two_factor.validate_setup_buttons(settings_dialog)
+
+    # --- 4. Cancel returns to the settings screen ---
+    settings_dialog.cancel_setup()
+    two_factor.validate_setup_closed_and_settings_restored(settings_dialog)
+
+    # --- 5. the X closes the settings popup ---
+    settings_dialog.close()
+    two_factor.validate_settings_closed(settings_dialog)
+    two_factor.validate_reminder_closed(reminder)
+
+    # --- 6. back in the authenticated application ---
+    NavigationValidations(verify, shell, role).validate_logged_in()
+    verify.record_info(
+        f"{role.display_name} - Application state after closing the 2FA dialogs",
+        shell.current_url,
     )
