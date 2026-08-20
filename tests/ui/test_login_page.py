@@ -9,7 +9,8 @@ successful login. No test opens a second browser, context, page or driver.
 | branding and login form are displayed         | P0       | LOGIN-01 .. LOGIN-12      |
 | footer is complete (logo, legal, contact,     | P1       | LOGIN-13 .. LOGIN-20      |
 | social, copyright) and detected dynamically   |          |                           |
-| password show/hide toggle, then valid login   | P0       | LOGIN-21 .. LOGIN-28      |
+| password show/hide, sign in, full 2FA dialog  | P0       | LOGIN-21 .. LOGIN-28,     |
+| chain, back to the authenticated dashboard    |          | 2FA-01 .. 2FA-13          |
 
 The login case runs last on purpose: it is the only one that changes the
 window's authentication state, and it hands that state back afterwards.
@@ -70,23 +71,41 @@ def test_login_page_footer_is_complete(login_validations: LoginPageValidations):
     login_validations.validate_footer()
 
 
-# ------------------------------------------------- functional login
+# ---------------------------- functional login through the full 2FA flow
 @pytest.mark.smoke
 @pytest.mark.critical
 @pytest.mark.login
-def test_password_visibility_toggles_then_valid_user_logs_in(
+@pytest.mark.two_factor
+def test_login_flow_completes_through_two_factor_and_reaches_the_dashboard(
     login_validations: LoginPageValidations,
     login_page: LoginPage,
-    platform_admin: Credentials,
+    login_credentials: Credentials,
     verify: Verifier,
     role: Role,
     signed_out_afterwards,
 ):
-    """Type the credentials, exercise show/hide, then sign in - one window."""
-    password = platform_admin.password
+    """One continuous flow, one login, one window: password visibility, sign
+    in, the full two-factor dialog chain, and back to the authenticated app.
+
+    Driven by ``login_credentials`` (resolved from the ``role`` fixture), not
+    by a role-specific fixture, so this exact test runs unchanged for any role
+    - only ``role`` needs to change. Only Platform Admin is exercised this
+    phase; the other three roles stay configured but unexecuted.
+
+    Read-only by design. ``Enable 2FA`` only requests a setup secret and opens
+    the setup screen; two-factor authentication is switched on by
+    ``Verify & Enable``, which is asserted but **never clicked** - doing so
+    would lock a shared QA account behind an authenticator app.
+
+    No dashboard/menu-specific automation happens here - the flow ends the
+    moment the authenticated shell is confirmed. Role-specific dashboard
+    validation is a separate, later task.
+    """
+    password = login_credentials.password
+    two_factor = TwoFactorValidations(verify, role)
 
     # --- 1. credentials entered, password hidden by default ---
-    login_page.fill_credentials(platform_admin)
+    login_page.fill_credentials(login_credentials)
     login_validations.validate_password_is_masked(password, stage="after it is typed in")
 
     # --- 2. reveal it ---
@@ -99,52 +118,22 @@ def test_password_visibility_toggles_then_valid_user_logs_in(
     login_validations.validate_password_is_masked(password, stage="after hiding it again")
     login_validations.validate_toggle_offers_show()
 
-    # --- 4. sign in, in the same window ---
-    shell = login_page.submit()
+    # --- 4. sign in, leaving the reminder popup on screen to be asserted ---
+    shell = login_page.submit(dismiss_reminder=False)
 
     navigation = NavigationValidations(verify, shell, role)
     navigation.validate_logged_in()
-    verify.record_info(
-        f"{role.display_name} - Landing page after a successful login", shell.current_url
-    )
 
-
-# --------------------------------------------- post-login 2FA flow
-@pytest.mark.smoke
-@pytest.mark.critical
-@pytest.mark.login
-@pytest.mark.two_factor
-def test_post_login_two_factor_flow_can_be_reviewed_and_dismissed(
-    login_page: LoginPage,
-    platform_admin: Credentials,
-    verify: Verifier,
-    role: Role,
-    signed_out_afterwards,
-):
-    """Log in, then walk the whole two-factor dialog chain and back out of it.
-
-    Same browser, same context, same page as every other test in this file.
-
-    Read-only by design. ``Enable 2FA`` only requests a setup secret and opens
-    the setup screen; two-factor authentication is switched on by
-    ``Verify & Enable``, which is asserted but **never clicked** - doing so
-    would lock a shared QA account behind an authenticator app.
-    """
-    two_factor = TwoFactorValidations(verify, role)
-
-    # --- 1. log in, leaving the reminder popup on screen to be asserted ---
-    login_page.open()
-    shell = login_page.login(platform_admin, dismiss_reminder=False)
-
+    # --- 5. first popup: "Protect your account with 2FA" ---
     reminder = TwoFactorReminderDialog(shell.page).wait_until_shown()
     two_factor.validate_reminder_dialog(reminder)
 
-    # --- 2. "Open Security Settings", not "Maybe Later" ---
+    # --- 6. "Open Security Settings", not "Maybe Later" ---
     settings_dialog = reminder.open_security_settings()
     two_factor.validate_settings_dialog(settings_dialog)
     two_factor.validate_close_control(settings_dialog)
 
-    # --- 3. "Enable 2FA" opens the setup screen ---
+    # --- 7. "Enable 2FA" opens the setup screen ---
     settings_dialog.enable_two_factor()
     two_factor.validate_setup_dialog(settings_dialog)
     two_factor.validate_qr_code(settings_dialog)
@@ -152,18 +141,19 @@ def test_post_login_two_factor_flow_can_be_reviewed_and_dismissed(
     two_factor.validate_token_input(settings_dialog)
     two_factor.validate_setup_buttons(settings_dialog)
 
-    # --- 4. Cancel returns to the settings screen ---
+    # --- 8. Cancel returns to the settings screen ---
     settings_dialog.cancel_setup()
     two_factor.validate_setup_closed_and_settings_restored(settings_dialog)
 
-    # --- 5. the X closes the settings popup ---
+    # --- 9. the X closes the settings popup ---
     settings_dialog.close()
     two_factor.validate_settings_closed(settings_dialog)
     two_factor.validate_reminder_closed(reminder)
 
-    # --- 6. back in the authenticated application ---
-    NavigationValidations(verify, shell, role).validate_logged_in()
+    # --- 10. back in the authenticated application ---
+    navigation.validate_logged_in()
     verify.record_info(
-        f"{role.display_name} - Application state after closing the 2FA dialogs",
+        f"{role.display_name} - Application state after completing the login "
+        f"and two-factor flow",
         shell.current_url,
     )

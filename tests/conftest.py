@@ -45,6 +45,17 @@ def platform_admin() -> Credentials:
     return credentials_for(Role.PLATFORM_ADMIN)
 
 
+@pytest.fixture
+def login_credentials(role: Role) -> Credentials:
+    """Credentials for whichever role the ``role`` fixture resolves to.
+
+    The login + 2FA flow is written against this fixture, not against
+    ``platform_admin`` directly, so pointing ``role`` at a different Role later
+    runs the exact same flow for that role - no change to the test itself.
+    """
+    return credentials_for(role)
+
+
 # ----------------------------------------------- unauthenticated window
 @pytest.fixture(scope="session")
 def guest_session(browser: Browser, context_options: dict) -> Iterator[Page]:
