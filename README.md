@@ -66,18 +66,24 @@ inride/
 │   ├── roles.py           # Role enum + credential resolution (password masked)
 │   ├── menus.py           # expected menus + expected page text, per role
 │   ├── login_page.py      # expected login page copy: form, footer, copyright
-│   └── two_factor.py      # expected copy of the three post-login 2FA dialogs
+│   ├── two_factor.py      # expected copy of the three post-login 2FA dialogs
+│   └── profile_menu.py    # avatar menu entries + which roles may see each
 ├── pages/                 # locators + navigation. NO assertions.
 │   ├── base_page.py
 │   ├── login_page.py      # locators grouped: form, password toggle, footer
 │   ├── app_shell.py       # sidebar, top bar, 2FA reminder handling
 │   ├── two_factor.py      # the post-login 2FA dialog chain
+│   ├── profile_menu.py    # the avatar dropdown, and signing out
 │   └── conversations_page.py
 ├── validations/           # named assertions. NO locators.
 │   ├── login_validations.py
 │   ├── two_factor_validations.py
+│   ├── logout_validations.py
 │   ├── navigation_validations.py
 │   └── page_validations.py
+├── flows/                 # whole journeys, reusable from any test
+│   ├── login_flow.py      # page UI → footer → password → sign-in → 2FA chain
+│   └── logout_flow.py     # avatar → menu → role gate → sign out → login page
 ├── utils/
 │   ├── highlight.py       # the reusable yellow-highlight helper
 │   ├── verification.py    # highlight-then-assert engine, soft assertions
@@ -87,6 +93,7 @@ inride/
 │   ├── conftest.py        # role, page-object and authenticated-session fixtures
 │   └── ui/
 │       ├── test_login_page.py
+│       ├── test_login_logout.py     # the two flows running together
 │       └── test_platform_admin_access.py
 ├── conftest.py            # browser wiring, verify fixture, report hook
 ├── pytest.ini             # markers, reporting
@@ -94,9 +101,23 @@ inride/
 ```
 
 **Why the layers are split:** `pages/` knows *how* to reach and locate things;
-`validations/` knows *what* must be true; `config/` holds *the expected values*.
+`validations/` knows *what* must be true; `config/` holds *the expected values*;
+`flows/` composes those three into a journey a test can call in one line.
 Adding a new expected heading later is a one-line edit in `config/menus.py` —
 no test and no page object changes.
+
+**Login and logout are separate, independently reusable flows.** `LogoutFlow`
+assumes only that a user is authenticated — never how the session started, nor
+what was exercised in between — so any future test ends the same way:
+
+```python
+shell = LoginFlow(verify, login_page, role, credentials).sign_in_only()
+...                                    # create a dealer, test a module, …
+LogoutFlow(verify, shell, role, credentials).run()
+```
+
+Nothing about signing out lives in `LoginPage` or `LoginFlow`, and nothing
+about signing in lives in `LogoutFlow`.
 
 ---
 
@@ -122,14 +143,15 @@ pytest failure line, a log record or an HTML report.
 
 ---
 
-## Coverage — 20 tests, 240 validations
+## Coverage — 21 tests, 405 validations
 
 | Suite | Tests | Validations |
 |---|---|---|
 | Login page — branding, title, labels, form controls | 1 | 22 |
 | Login page — full footer (logo, Legal, Contact Info, social, copyright) | 1 | 50 |
-| Login page — password show/hide, then valid login | 1 | 15 |
-| Post-login 2FA dialog chain (reminder → settings → setup → cancel → close) | 1 | 54 |
+| Login page — password show/hide, sign-in, full 2FA chain | 1 | 68 |
+| **Login + Logout suite** — full login flow | 1 | 140 |
+| **Login + Logout suite** — full logout flow | 1 | 26 |
 | Platform Admin login | 1 | 3 |
 | All 14 main menus | 1 | 29 |
 | Conversations → Email / SMS submenus | 1 | 5 |
@@ -144,16 +166,23 @@ menu that broke instead of failing one giant test.
 
 ## Findings — application text vs. the requirement document
 
-Four requirement strings do not match what the application renders. The suite
+Seven requirement strings do not match what the application renders. The suite
 asserts the **actual UI text** and records the difference in the report rather
 than silently passing or failing:
 
 | Requirement asked for | Application renders | Where |
 |---|---|---|
 | `Copyright 2026, Inright LLC, All Rights Reserved` | `© Copyright 2026 Inride LLC. All Rights Reserved.` | Login footer |
+| `Two-Factor Setup` | `2FA Setup` | Profile menu |
+| `Onboarding Algorithm` | `Onboard Telgorithm` | Profile menu |
+| `Logout` | `Log out` | Profile menu |
 | `Manage Dealer Organization` | `Manage dealer organizations` | Dealer Profile |
 | `Manage Users` / `Account & Permission` | `Manage user accounts and permissions` | Users |
 | Conversations submenu `Text` | `SMS` | Conversations tabs |
+
+**`Onboard Telgorithm`** is worth a second look: Telgorithm is the messaging
+compliance provider, so the requirement's "Onboarding Algorithm" reads like a
+mishearing of the product name rather than a defect in the application.
 
 The copyright line differs in four ways: a leading `©`, spaces instead of the
 commas, a trailing full stop, and the company spelled **`Inride`** rather than

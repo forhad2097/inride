@@ -31,7 +31,8 @@ roles (`DEALER_ADMIN`, `USER`, `READ_ONLY_USER`) stay configured but unexecuted.
 | `config/` | roles, credentials, menus, expected page text | logic |
 | `pages/` | locators + navigation actions | assertions |
 | `validations/` | named assertions built on `Verifier` | locators |
-| `tests/` | flow + markers | selectors or credentials |
+| `flows/` | whole reusable journeys (login, logout) | locators or literals |
+| `tests/` | which flows to run + markers | selectors or credentials |
 | `utils/` | highlighter, verifier, report, logger | app knowledge |
 
 ## Skills to load
@@ -69,6 +70,15 @@ roles (`DEALER_ADMIN`, `USER`, `READ_ONLY_USER`) stay configured but unexecuted.
     the viewport. Never a hardcoded viewport like `1280x720`. Never add
     maximize/viewport logic inside a page object or a test — this is
     session-level configuration, not something any future page repeats.
+
+11. **Login and logout are separate flows and stay that way.** Sign-out logic
+    never goes into `LoginPage` or `LoginFlow`; sign-in logic never goes into
+    `LogoutFlow`. `LogoutFlow` assumes only that a user is authenticated, so
+    any future test can end `... → LogoutFlow(...).run()` regardless of what
+    it did in between.
+12. Role-gated UI is expressed as **data** (`visible_for` in
+    `config/profile_menu.py`), never as an `if role == ...` branch in a test,
+    and a hidden entry is asserted absent — not merely "not checked".
 
 ## Before reporting work complete
 
