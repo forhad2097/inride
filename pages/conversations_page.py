@@ -5,7 +5,7 @@ Read-only: nothing here sends a message or mutates a thread.
 
 from __future__ import annotations
 
-from playwright.sync_api import Locator, Page
+from playwright.sync_api import Locator, Page # type: ignore
 
 from config.menus import SubMenuItem
 from pages.base_page import BasePage
